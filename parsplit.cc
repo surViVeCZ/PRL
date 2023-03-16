@@ -32,28 +32,24 @@ int main(int argc, char** argv) {
 
     //opening binary file
     if (process_no == 0) {
-        ifstream input("numbers", ios::binary);
+        std::ifstream input("numbers", std::ios::binary);
     
         // Check if the file was opened successfully
         if (!input){
-            cerr << "Failed to open file" << endl;
+            std::cerr << "Failed to open file" << std::endl;
             return 1;
         }
 
-        
         int length = file_size(input);
-        char buffer[64];
-        input.read(buffer, 64);
+        std::vector<unsigned char> numbers_file(length);
+        input.read(reinterpret_cast<char*>(&numbers_file[0]), length);
 
         input.close();
-        int numbers_file[length] = {0};
         // Output the numbers to the console
         for (int i = 0; i < length; i++){
-            cout << static_cast<int>(buffer[i]) << " ";
-            //store buffer[i] into int array
-            numbers_file[i] = static_cast<int>(buffer[i]);
+            std::cout << static_cast<int>(numbers_file[i]) << " ";
         }
-        cout << endl;
+        std::cout << std::endl;
 
         median = numbers_file[length/2];
         std::cout << "Median: " << median << std::endl;
