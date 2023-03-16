@@ -5,8 +5,6 @@
 #include <iostream>
 #include <vector>   
 using namespace std;
-//open file numbers and read it
-
 
 //function calcultes number of bytes of binary file
 int file_size(ifstream& file){
@@ -38,14 +36,17 @@ int main(int argc, char** argv) {
         input.read(buffer, 64);
 
         input.close();
-
+        int numbers_file[length] = {0};
         // Output the numbers to the console
         for (int i = 0; i < length; i++){
             cout << static_cast<int>(buffer[i]) << " ";
+            //store buffer[i] into int array
+            numbers_file[i] = static_cast<int>(buffer[i]);
         }
         cout << endl;
+
+        std::cout << "Median: " << numbers_file[length/2] << std::endl;
     }
- 
 
     std::cout << "Hello from process " << process_no << "!" << std::endl;
 
