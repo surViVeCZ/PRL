@@ -19,7 +19,17 @@ int main(int argc, char** argv) {
     MPI_Init(&argc, &argv);
 
     int process_no;
+    int median;
+    int num_processes;
     MPI_Comm_rank(MPI_COMM_WORLD, &process_no);
+    MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
+
+    int recvcounts[num_processes] = {1}; //number of elements to receive from each process - each sends only 1 elements
+    int displs[num_processes]; //displacement of each element in the receive buffer
+    for (int i = 0; i < num_processes; i++) {
+        displs[i] = i;
+    }
+
     //opening binary file
     if (process_no == 0) {
         ifstream input("numbers", ios::binary);
@@ -45,10 +55,24 @@ int main(int argc, char** argv) {
         }
         cout << endl;
 
-        std::cout << "Median: " << numbers_file[length/2] << std::endl;
+        median = numbers_file[length/2];
+        std::cout << "Median: " << median << std::endl;
     }
 
-    std::cout << "Hello from process " << process_no << "!" << std::endl;
+    // Broadcast the median to all processes
+    MPI_Bcast(&median, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Perform some operation on the median (in this case, simply adding 1)
+    median += 1;
+
+    // Create an array to hold the updated median for each process
+    int updated_medians[num_processes];
+    // Gather the updated median from all processes to the root process
+    MPI_Gatherv(&median, 1, MPI_INT, updated_medians, recvcounts, displs, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (process_no == 0) {
+        std::cout << "Updated median: " << updated_medians[0] << std::endl;
+    }
 
     MPI_Finalize();
     return 0;
