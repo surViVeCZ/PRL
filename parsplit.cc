@@ -109,6 +109,38 @@ int main(int argc, char** argv) {
     }
     std::cout << std::endl;
 
+    
+    //compute sums of L, E, and G groups
+    int sum_L = 0, sum_E = 0, sum_G = 0;
+    for (auto num : L) {
+        sum_L += num;
+    }
+    for (auto num : E) {
+        sum_E += num;
+    }
+    for (auto num : G) {
+        sum_G += num;
+    }
+    
+    // std::cout << "  Sum of L: " << sum_L << std::endl;
+    // std::cout << "  Sum of E: " << sum_E << std::endl;
+    // std::cout << "  Sum of G: " << sum_G << std::endl;
+
+    //merge sum of L of each process
+    int sum_L_all = 0;
+    int sum_E_all = 0;
+    int sum_G_all = 0;
+    MPI_Reduce(&sum_L, &sum_L_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&sum_E, &sum_E_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&sum_G, &sum_G_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (process_no == 0) {
+        std::cout << std::endl;
+        std::cout << "Total Sum of L: " << sum_L_all << std::endl;
+        std::cout << "Total Sum of E: " << sum_E_all << std::endl;
+        std::cout << "Total Sum of G: " << sum_G_all << std::endl;
+    }
+
 
     MPI_Finalize();
     return 0;
