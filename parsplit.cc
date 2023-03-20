@@ -36,16 +36,7 @@ int main(int argc, char** argv) {
     int n = file_size(input);
     int n_per_process = n / N;
 
-    // Determine the starting position and length of the data for this process
-    int start_pos = process_no * n_per_process;
-    int end_pos = (process_no == N - 1) ? n : (start_pos + n_per_process);
-    int len = end_pos - start_pos;
-
-    // Read in the data for this process from the binary file
-    std::vector<unsigned char> numbers_file(len);
-    input.seekg(start_pos);
-    input.read(reinterpret_cast<char*>(&numbers_file[0]), len);
-    input.close();
+  
 
     // Compute the median on the root process
     int median;
@@ -73,6 +64,20 @@ int main(int argc, char** argv) {
         median = numbers_file[n/2];
         std::cout << "Median: " << median << std::endl;
     }
+      // Determine the starting position and length of the data for this process
+    int start_pos = process_no * n_per_process;
+    int end_pos = (process_no == N - 1) ? n : (start_pos + n_per_process);
+    int len = end_pos - start_pos;
+
+    // Read in the data for this process from the binary file
+    std::vector<unsigned char> numbers_file(len);
+    input.seekg(start_pos);
+    input.read(reinterpret_cast<char*>(&numbers_file[0]), len);
+    input.close();
+
+    //TODO rewrite using scatter
+    //split numbers into same size groups and send 1 group to each process using MPI_Scatter (first 2 numbers to process 0, next 2 to process 1, etc.)
+    // MPI_Scatter(&numbers_file[0], len, MPI_INT, &numbers_file[0], len, MPI_INT, 0, MPI_COMM_WORLD);
 
     // Broadcast the median to all processes
     MPI_Bcast(&median, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -121,10 +126,6 @@ int main(int argc, char** argv) {
     for (auto num : G) {
         sum_G += num;
     }
-    
-    // std::cout << "  Sum of L: " << sum_L << std::endl;
-    // std::cout << "  Sum of E: " << sum_E << std::endl;
-    // std::cout << "  Sum of G: " << sum_G << std::endl;
 
     //merge sum of L of each process
     int sum_L_all = 0;
@@ -133,13 +134,6 @@ int main(int argc, char** argv) {
     MPI_Reduce(&sum_L, &sum_L_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&sum_E, &sum_E_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(&sum_G, &sum_G_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
-    if (process_no == 0) {
-        std::cout << std::endl;
-        std::cout << "Total Sum of L: " << sum_L_all << std::endl;
-        std::cout << "Total Sum of E: " << sum_E_all << std::endl;
-        std::cout << "Total Sum of G: " << sum_G_all << std::endl;
-    }
 
 
     MPI_Finalize();
