@@ -71,6 +71,7 @@ int main(int argc, char** argv) {
     // Compute the L, E, and G groups for this process
     std::vector<unsigned char> L, E, G;
     for (int i = 0; i < n_per_process; i++) {
+        //print local_numbers
         if (local_numbers[i] < median) {
             L.push_back(local_numbers[i]);
         } else if (local_numbers[i] == median) {
@@ -101,49 +102,48 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
     
 
-    // Gather the L, E, and G groups from all processes
+    // Allocate a new buffer to hold all the gathered data on the root process
+    std::vector<unsigned char> all_numbers(n);
     std::vector<unsigned char> L_all, E_all, G_all;
 
-    // MPI_Gather(&L[0], L.size(), MPI_UNSIGNED_CHAR,
-    //            &L_all[0], L.size(), MPI_UNSIGNED_CHAR,
-    //            0, MPI_COMM_WORLD);
-    
-    // MPI_Gather(&E[0], E.size(), MPI_UNSIGNED_CHAR,
-    //             &E_all[0], E.size(), MPI_UNSIGNED_CHAR,
-    //             0, MPI_COMM_WORLD);
-    
-    // MPI_Gather(&G[0], G.size(), MPI_UNSIGNED_CHAR,
-    //             &G_all[0], G.size(), MPI_UNSIGNED_CHAR,
-    //             0, MPI_COMM_WORLD);
+    // Gather the data from all the processes into the all_numbers buffer on the root process
+    MPI_Gather(&local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,
+            &all_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,
+            0, MPI_COMM_WORLD);
+    // Merge the E, G, and L groups on the root process
+    if (process_no == 0) {
+        for (int i = 0; i < n; i++) {
+            if (all_numbers[i] < median) {
+                L_all.push_back(all_numbers[i]);
+            } else if (all_numbers[i] == median) {
+                E_all.push_back(all_numbers[i]);
+            } else {
+                G_all.push_back(all_numbers[i]);
+            }
+        }
+    }
 
+    // Print out the E_all, G_all, and L_all groups in the root process
+    if (process_no == 0) {
+        std::cout << std::endl;
+        std::cout << "L_all: ";
+        for (auto num : L_all) {
+            std::cout << static_cast<int>(num) << " ";
+        }
+        std::cout << std::endl;
 
-    // // Merge the L, E, and G groups into L_all, E_all, and G_all on the root process
-    // if (process_no == 0) {
-    //     // Determine the total size of L, E, and G across all processes
-    //     int total_L_size, total_E_size, total_G_size;
-    //     MPI_Reduce(&L.size(), &total_L_size, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-    //     MPI_Reduce(&E.size(), &total_E_size, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-    //     MPI_Reduce(&G.size(), &total_G_size, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        std::cout << "E_all: ";
+        for (auto num : E_all) {
+            std::cout << static_cast<int>(num) << " ";
+        }
+        std::cout << std::endl;
 
-    //     // Resize L_all, E_all, and G_all to the total size of L, E, and G
-    //     L_all.resize(total_L_size);
-    //     E_all.resize(total_E_size);
-    //     G_all.resize(total_G_size);
-
-    //     // Gather the L, E, and G groups from all processes again, this time into L_all, E_all, and G_all
-    //     MPI_Gather(&L[0], L.size(), MPI_UNSIGNED_CHAR,
-    //             &L_all[0], L.size(), MPI_UNSIGNED_CHAR,
-    //             0, MPI_COMM_WORLD);
-    //     MPI_Gather(&E[0], E.size(), MPI_UNSIGNED_CHAR,
-    //             &E_all[0], E.size(), MPI_UNSIGNED_CHAR,
-    //             0, MPI_COMM_WORLD);
-    //     MPI_Gather(&G[0], G.size(), MPI_UNSIGNED_CHAR,
-    //             &G_all[0], G.size(), MPI_UNSIGNED_CHAR,
-    //             0, MPI_COMM_WORLD);
-    // }
-
-
-
+        std::cout << "G_all: ";
+        for (auto num : G_all) {
+            std::cout << static_cast<int>(num) << " ";
+        }
+        std::cout << std::endl;
+    }
 
     MPI_Finalize();
     return 0;
