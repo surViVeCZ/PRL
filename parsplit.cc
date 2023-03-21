@@ -35,13 +35,8 @@ int main(int argc, char** argv) {
     int n = file_size(input);
     int n_per_process = n / N;
 
-    // Determine the starting position and length of the data for this process
-    int start_pos = process_no * n_per_process;
-    int end_pos = (process_no == N - 1) ? n : (start_pos + n_per_process);
-    int len = end_pos - start_pos;
-
     // Allocate memory for local data
-    std::vector<unsigned char> local_numbers(len);
+    std::vector<unsigned char> local_numbers(n_per_process);
 
     if (process_no == 0) {
         // Read in the data for the root process from the binary file
@@ -56,17 +51,11 @@ int main(int argc, char** argv) {
         std::cout << std::endl;
 
         // Scatter the data to all processes
-        MPI_Scatter(&numbers_file[0], len, MPI_UNSIGNED_CHAR,
-                    &local_numbers[0], len, MPI_UNSIGNED_CHAR,
+        MPI_Scatter(&numbers_file[0], n_per_process, MPI_UNSIGNED_CHAR,
+                    &local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,
                     0, MPI_COMM_WORLD);
     } else {
-        // Allocate memory for root process data
-        std::vector<unsigned char> numbers_file(n);
-
-        // Scatter the data to all processes
-        MPI_Scatter(NULL, len, MPI_UNSIGNED_CHAR,
-                    &local_numbers[0], len, MPI_UNSIGNED_CHAR,
-                    0, MPI_COMM_WORLD);
+        MPI_Scatter(0, n_per_process, MPI_UNSIGNED_CHAR,&local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,0, MPI_COMM_WORLD);
     }
 
     // Compute the median on the root process
@@ -79,10 +68,9 @@ int main(int argc, char** argv) {
     // Broadcast the median to all processes
     MPI_Bcast(&median, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-
     // Compute the L, E, and G groups for this process
     std::vector<unsigned char> L, E, G;
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < n_per_process; i++) {
         if (local_numbers[i] < median) {
             L.push_back(local_numbers[i]);
         } else if (local_numbers[i] == median) {
@@ -115,9 +103,6 @@ int main(int argc, char** argv) {
 
     // Gather the L, E, and G groups from all processes
     std::vector<unsigned char> L_all, E_all, G_all;
-    L_all.resize(N);
-    E_all.resize(N);
-    G_all.resize(N);
 
     // MPI_Gather(&L[0], L.size(), MPI_UNSIGNED_CHAR,
     //            &L_all[0], L.size(), MPI_UNSIGNED_CHAR,
