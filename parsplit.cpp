@@ -7,6 +7,22 @@
 
 using namespace std;
 
+
+//function to merge L_all, E_all, G_all into root process and print it
+void merge_and_print(vector<unsigned char> &L_all, vector<unsigned char> &E_all, vector<unsigned char> &G_all, int N, int n_per_process, int n){
+    //resize buffer
+    vector<unsigned char> all_numbers(n);
+    //merge L, E, G groups
+    merge(L_all.begin(), L_all.end(), E_all.begin(), E_all.end(), all_numbers.begin());
+    merge(all_numbers.begin(), all_numbers.end(), G_all.begin(), G_all.end(), all_numbers.begin());
+    //print merged vector
+    cout << "Merged vector: ";
+    for(int i = 0; i < n; i++){
+        cout << static_cast<int>(all_numbers[i]) << " ";
+    }
+    cout << endl;
+}
+
 //function calculates number of bytes of binary file
 int file_size(ifstream& file){
     file.seekg(0, ios::end);
@@ -105,9 +121,9 @@ int main(int argc, char** argv) {
 
     // Allocate a new buffer to hold all the gathered data on the root process
     std::vector<unsigned char> all_numbers(n);
-    std::vector<unsigned char> L_all(n);
-    std::vector<unsigned char> E_all(n);
-    std::vector<unsigned char> G_all(n);
+    std::vector<unsigned char> L_all;
+    std::vector<unsigned char> E_all;
+    std::vector<unsigned char> G_all;
 
 
     int L_size = L.size();
@@ -135,29 +151,27 @@ int main(int argc, char** argv) {
 
     //now we gather L, E, G groups using gatherv
     if(process_no == 0){
+        //resize buffers
+        L_all.resize(L_displacements[N-1] + L_sizes[N-1]);
+        E_all.resize(E_displacements[N-1] + E_sizes[N-1]);
+        G_all.resize(G_displacements[N-1] + G_sizes[N-1]);
+
         MPI_Gatherv(&L[0], L_size, MPI_UNSIGNED_CHAR, &L_all[0], &L_sizes[0], &L_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
         MPI_Gatherv(&E[0], E_size, MPI_UNSIGNED_CHAR, &E_all[0], &E_sizes[0], &E_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
         MPI_Gatherv(&G[0], G_size, MPI_UNSIGNED_CHAR, &G_all[0], &G_sizes[0], &G_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
     }
     else{
+        L_all.resize(0);
+        E_all.resize(0);
+        G_all.resize(0);
         MPI_Gatherv(&L[0], L_size, MPI_UNSIGNED_CHAR, nullptr, nullptr, nullptr, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
         MPI_Gatherv(&E[0], E_size, MPI_UNSIGNED_CHAR, nullptr, nullptr, nullptr, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
         MPI_Gatherv(&G[0], G_size, MPI_UNSIGNED_CHAR, nullptr, nullptr, nullptr, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
     }
 
- 
-
-    // Merge the E, G, and L groups on the root process
-    if (process_no == 0) {
-        std::vector<unsigned char> all_numbers;
-        all_numbers.insert(all_numbers.end(), L_all.begin(), L_all.end());
-        all_numbers.insert(all_numbers.end(), E_all.begin(), E_all.end());
-        all_numbers.insert(all_numbers.end(), G_all.begin(), G_all.end());
-        std::cout << std::endl;
-    }
-
     // Print out the E_all, G_all, and L_all groups in the root process
     if (process_no == 0) {
+        std::cout << std::endl;
         std::cout << "E_all: ";
         for (auto num : E_all) {
             std::cout << static_cast<int>(num) << " ";
@@ -172,6 +186,26 @@ int main(int argc, char** argv) {
 
         std::cout << "L_all: ";
         for (auto num : L_all) {
+            std::cout << static_cast<int>(num) << " ";
+        }
+        std::cout << std::endl;
+    }
+
+    //initialize numbers_solution vector
+    std::vector<unsigned char> numbers_solution(n);
+    //get size L_all + E_all
+    int L_all_size = L_all.size();
+    int E_all_size = E_all.size();
+  
+    //merge all 3 groups (L_all, E_all, G_all) to numbers_solution
+    std::merge(L_all.begin(), L_all.end(), E_all.begin(), E_all.end(), numbers_solution.begin());
+    std::merge(numbers_solution.begin(), numbers_solution.begin() + L_all_size + E_all_size, G_all.begin(), G_all.end(), numbers_solution.begin());
+
+    //print numbers_solution
+    if(process_no == 0){
+        std::cout << std::endl;
+        std::cout << "numbers_solution: ";
+        for (auto num : numbers_solution) {
             std::cout << static_cast<int>(num) << " ";
         }
         std::cout << std::endl;
