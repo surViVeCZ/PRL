@@ -139,26 +139,26 @@ int main(int argc, char** argv) {
     MPI_Gather(&G_size, 1, MPI_INT, &G_sizes[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     //displacement of L, E, G groups in the buffer
-    std::vector<int> L_displacements(N);
-    std::vector<int> E_displacements(N);
-    std::vector<int> G_displacements(N);
-    //calculate displacements
+    std::vector<int> L_offset(N);
+    std::vector<int> E_offset(N);
+    std::vector<int> G_offset(N);
+    //specifies starting position of each group in the buffer
     for(int i = 1; i < N; i++){
-        L_displacements[i] = L_displacements[i-1] + L_sizes[i-1];
-        E_displacements[i] = E_displacements[i-1] + E_sizes[i-1];
-        G_displacements[i] = G_displacements[i-1] + G_sizes[i-1];
+        L_offset[i] = L_offset[i-1] + L_sizes[i-1];
+        E_offset[i] = E_offset[i-1] + E_sizes[i-1];
+        G_offset[i] = G_offset[i-1] + G_sizes[i-1];
     }
 
     //now we gather L, E, G groups using gatherv
     if(process_no == 0){
         //resize buffers
-        L_all.resize(L_displacements[N-1] + L_sizes[N-1]);
-        E_all.resize(E_displacements[N-1] + E_sizes[N-1]);
-        G_all.resize(G_displacements[N-1] + G_sizes[N-1]);
+        L_all.resize(L_offset[N-1] + L_sizes[N-1]);
+        E_all.resize(E_offset[N-1] + E_sizes[N-1]);
+        G_all.resize(G_offset[N-1] + G_sizes[N-1]);
 
-        MPI_Gatherv(&L[0], L_size, MPI_UNSIGNED_CHAR, &L_all[0], &L_sizes[0], &L_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-        MPI_Gatherv(&E[0], E_size, MPI_UNSIGNED_CHAR, &E_all[0], &E_sizes[0], &E_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-        MPI_Gatherv(&G[0], G_size, MPI_UNSIGNED_CHAR, &G_all[0], &G_sizes[0], &G_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&L[0], L_size, MPI_UNSIGNED_CHAR, &L_all[0], &L_sizes[0], &L_offset[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&E[0], E_size, MPI_UNSIGNED_CHAR, &E_all[0], &E_sizes[0], &E_offset[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&G[0], G_size, MPI_UNSIGNED_CHAR, &G_all[0], &G_sizes[0], &G_offset[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
     }
     else{
         L_all.resize(0);
