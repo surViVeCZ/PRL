@@ -3,7 +3,7 @@ CXXFLAGS = -Wall -std=c++11
 
 all: parsplit
 
-parsplit: parsplit.cc
+parsplit: parsplit.cpp
 	$(CXX) $(CXXFLAGS) --prefix /usr/local/share/OpenMPI -o $@ $<
 
 clean:

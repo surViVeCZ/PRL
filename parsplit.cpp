@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
 
     int n = file_size(input);
     int n_per_process = n / N;
+    
 
     // Allocate memory for local data
     std::vector<unsigned char> local_numbers(n_per_process);
@@ -55,7 +56,7 @@ int main(int argc, char** argv) {
                     &local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,
                     0, MPI_COMM_WORLD);
     } else {
-        MPI_Scatter(0, n_per_process, MPI_UNSIGNED_CHAR,&local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,0, MPI_COMM_WORLD);
+        MPI_Scatter(nullptr, n_per_process, MPI_UNSIGNED_CHAR,&local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,0, MPI_COMM_WORLD);
     }
 
     // Compute the median on the root process
@@ -104,34 +105,59 @@ int main(int argc, char** argv) {
 
     // Allocate a new buffer to hold all the gathered data on the root process
     std::vector<unsigned char> all_numbers(n);
-    std::vector<unsigned char> L_all, E_all, G_all;
+    std::vector<unsigned char> L_all(n);
+    std::vector<unsigned char> E_all(n);
+    std::vector<unsigned char> G_all(n);
 
-    // Gather the data from all the processes into the all_numbers buffer on the root process
-    MPI_Gather(&local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,
-            &all_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,
-            0, MPI_COMM_WORLD);
+
+    int L_size = L.size();
+    int E_size = E.size();
+    int G_size = G.size();
+    std::vector<int> L_sizes(N);
+    std::vector<int> E_sizes(N);
+    std::vector<int> G_sizes(N);
+
+    //gathering sizes of L, E, G groups
+    MPI_Gather(&L_size, 1, MPI_INT, &L_sizes[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(&E_size, 1, MPI_INT, &E_sizes[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(&G_size, 1, MPI_INT, &G_sizes[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    //displacement of L, E, G groups in the buffer
+    std::vector<int> L_displacements(N);
+    std::vector<int> E_displacements(N);
+    std::vector<int> G_displacements(N);
+    //calculate displacements
+    for(int i = 1; i < N; i++){
+        L_displacements[i] = L_displacements[i-1] + L_sizes[i-1];
+        E_displacements[i] = E_displacements[i-1] + E_sizes[i-1];
+        G_displacements[i] = G_displacements[i-1] + G_sizes[i-1];
+    }
+
+    //now we gather L, E, G groups using gatherv
+    if(process_no == 0){
+        MPI_Gatherv(&L[0], L_size, MPI_UNSIGNED_CHAR, &L_all[0], &L_sizes[0], &L_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&E[0], E_size, MPI_UNSIGNED_CHAR, &E_all[0], &E_sizes[0], &E_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&G[0], G_size, MPI_UNSIGNED_CHAR, &G_all[0], &G_sizes[0], &G_displacements[0], MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+    }
+    else{
+        MPI_Gatherv(&L[0], L_size, MPI_UNSIGNED_CHAR, nullptr, nullptr, nullptr, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&E[0], E_size, MPI_UNSIGNED_CHAR, nullptr, nullptr, nullptr, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+        MPI_Gatherv(&G[0], G_size, MPI_UNSIGNED_CHAR, nullptr, nullptr, nullptr, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+    }
+
+ 
+
     // Merge the E, G, and L groups on the root process
     if (process_no == 0) {
-        for (int i = 0; i < n; i++) {
-            if (all_numbers[i] < median) {
-                L_all.push_back(all_numbers[i]);
-            } else if (all_numbers[i] == median) {
-                E_all.push_back(all_numbers[i]);
-            } else {
-                G_all.push_back(all_numbers[i]);
-            }
-        }
+        std::vector<unsigned char> all_numbers;
+        all_numbers.insert(all_numbers.end(), L_all.begin(), L_all.end());
+        all_numbers.insert(all_numbers.end(), E_all.begin(), E_all.end());
+        all_numbers.insert(all_numbers.end(), G_all.begin(), G_all.end());
+        std::cout << std::endl;
     }
 
     // Print out the E_all, G_all, and L_all groups in the root process
     if (process_no == 0) {
-        std::cout << std::endl;
-        std::cout << "L_all: ";
-        for (auto num : L_all) {
-            std::cout << static_cast<int>(num) << " ";
-        }
-        std::cout << std::endl;
-
         std::cout << "E_all: ";
         for (auto num : E_all) {
             std::cout << static_cast<int>(num) << " ";
@@ -140,6 +166,12 @@ int main(int argc, char** argv) {
 
         std::cout << "G_all: ";
         for (auto num : G_all) {
+            std::cout << static_cast<int>(num) << " ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "L_all: ";
+        for (auto num : L_all) {
             std::cout << static_cast<int>(num) << " ";
         }
         std::cout << std::endl;
