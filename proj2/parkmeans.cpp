@@ -2,10 +2,24 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <mpi.h>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+using namespace std;
 
 const int MAX_ITER = 100;
-const int N_CLUSTERS = 4;
-const int MAX_VALUES = 32;
+const int n_means = 4;
+
+int file_size(ifstream& file){
+    file.seekg(0, ios::end);
+    int n = file.tellg();
+    file.seekg(0, ios::beg);
+    return n;
+}
 
 double distance(double *v1, double *v2, int n)
 {
@@ -32,7 +46,7 @@ int find_nearest_cluster(double *value, double **clusters, int n, int m)
 
 void compute_clusters(double **values, int n, int m, double **clusters, int *assignments)
 {
-    for (int i = 0; i < N_CLUSTERS; i++) {
+    for (int i = 0; i < n_means; i++) {
         int idx = rand() % n;
         for (int j = 0; j < m; j++) {
             clusters[i][j] = values[idx][j];
@@ -44,14 +58,14 @@ void compute_clusters(double **values, int n, int m, double **clusters, int *ass
     while (changed && iter < MAX_ITER) {
         changed = false;
         for (int i = 0; i < n; i++) {
-            int nearest_cluster = find_nearest_cluster(values[i], clusters, N_CLUSTERS, m);
+            int nearest_cluster = find_nearest_cluster(values[i], clusters, n_means, m);
             if (nearest_cluster != assignments[i]) {
                 changed = true;
                 assignments[i] = nearest_cluster;
             }
         }
 
-        for (int i = 0; i < N_CLUSTERS; i++) {
+        for (int i = 0; i < n_means; i++) {
             double *sum = new double[m];
             int count = 0;
             for (int j = 0; j < n; j++) {
@@ -76,19 +90,31 @@ void compute_clusters(double **values, int n, int m, double **clusters, int *ass
 
 int main(int argc, char *argv[])
 {
-    // Initialize MPI
-    MPI_Init(&argc, &argv);
 
-    // Get the rank of the current process
     int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    // Get the number of processes
     int nprocs;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    // Set the number of values and dimensions
-    int n = 16;  // number of values
+    //number of processes must be 4 - 32
+    if (nprocs < 4 || nprocs > 32){
+        std::cerr << "Wrong ammount of processes" << std::endl;
+        MPI_Finalize();
+        return 1;
+    }
+
+    //opening binary file
+    std::ifstream input("numbers", std::ios::binary);
+    
+    if (!input){
+        std::cerr << "Failed to open file" << std::endl;
+        MPI_Finalize();
+        return 1;
+    }
+    int n = file_size(input); 
+    printf("%d", n);
+
     int m = 1;   // number of dimensions
 
     // Allocate memory for the values and assignments
@@ -109,8 +135,8 @@ int main(int argc, char *argv[])
     }
 
     // Allocate memory for the clusters
-    double **clusters = new double *[N_CLUSTERS];
-    for (int i = 0; i < N_CLUSTERS; i++) {
+    double **clusters = new double *[n_means];
+    for (int i = 0; i < n_means; i++) {
         clusters[i] = new double[m];
     }
 
@@ -120,7 +146,7 @@ int main(int argc, char *argv[])
     // Print the results
     if (rank == 0) {
         printf("Clusters:\n");
-        for (int i = 0; i < N_CLUSTERS; i++) {
+        for (int i = 0; i < n_means; i++) {
             for (int j = 0; j < m; j++) {
                 printf("%f ", clusters[i][j]);
             }
@@ -134,7 +160,7 @@ int main(int argc, char *argv[])
     }
     delete[] values;
     delete[] assignments;
-    for (int i = 0; i < N_CLUSTERS; i++) {
+    for (int i = 0; i < n_means; i++) {
         delete[] clusters[i];
     }
     delete[] clusters;
