@@ -104,18 +104,20 @@ std::vector<int> new_clusters(int process_no, int n, const vector<unsigned char>
 }
 
 
+#include <mpi.h>
+#include <vector>
+#include <iostream>
+#include <fstream>
+
 int main(int argc, char* argv[]) {
     int process_no;
     int nprocs;
-    //create list of means of size n_means
     std::vector<double> means(n_means);
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &process_no);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    //opening binary file
     std::ifstream input("numbers", std::ios::binary);
-
     int n = 0;
     if (process_no == 0) {
         n = file_size(input);
@@ -126,23 +128,20 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
-  
-    if (n > nprocs) {
-        input.seekg(n-nprocs, ios::beg);
-        n = nprocs;
-    }
+
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    //read input numbers from binary file
+    if (n > nprocs) {
+        input.seekg(n-nprocs, std::ios::beg);
+        n = nprocs;
+    }
+
     std::vector<unsigned char> numbers_file(n);
     std::vector<double> all_means(n_means * nprocs);
 
     if (process_no == 0) {
-        // Read in the data for the root process from the binary file as integers
         input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
         input.close();
-
-        //1.)Get cluster centers as 4 first numbers from file
         printf("Initialized centers: ");
         for (int i = 0; i < n_means; i++) {
             means[i] = numbers_file[i];
@@ -150,28 +149,35 @@ int main(int argc, char* argv[]) {
         }
         std::cout << std::endl;
     }
-    //send 1 number to each process using MPI scatter
+
     MPI_Scatter(&numbers_file[0], 1, MPI_UNSIGNED_CHAR, &numbers_file[0], 1, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
-    //send means to all processes
     MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    //parallel implementation of 4-means algorithm, use MPI allgather and reduce to communicate
-    //2.)Assign each number to the nearest cluster center
+    //declare assignments
     std::vector<int> assignments(n);
     for (int i = 0; i < n; i++) {
         assignments[i] = find_nearest_cluster(numbers_file[i], means);
     }
-    //3.)Calculate new cluster centers
-    //4.)Repeat steps 2 and 3 until convergence
+
     std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-    while(new_assignments != assignments) {
+    std::vector<int> all_assignments(nprocs * n);
+    MPI_Allgather(&new_assignments[0], n, MPI_INT, &all_assignments[0], n, MPI_INT, MPI_COMM_WORLD);
+
+    while (new_assignments != assignments) {
         assignments = new_assignments;
         new_assignments = new_clusters(process_no, n, numbers_file, assignments);
+        //MPI_Allgather(&new_assignments[0], n, MPI_INT, &all_assignments[0], n, MPI_INT, MPI_COMM_WORLD);
+
+        MPI_Reduce(&all_means[process_no * n_means], &means[0], n_means, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
+    new_clusters(process_no, n, numbers_file, assignments);
+    
 
     MPI_Finalize();
     return 0;
 }
+
 
 
 
