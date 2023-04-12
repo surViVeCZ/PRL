@@ -114,6 +114,17 @@ int main(int argc, char *argv[])
     }
     int n = file_size(input); 
     printf("%d", n);
+    if (nprocs > n) {
+        std::cerr << "Too many processes" << std::endl;
+        MPI_Finalize();
+        return 1;
+    }
+    if (n > nprocs) {
+        //cut off the rest of numbers, so there is exactly nprocs numbers
+        //for example if n=16 and nprocs=4, then we cut off 12 numbers from the end
+        input.seekg(n-nprocs, ios::beg);
+        n = nprocs;
+    }
 
     int m = 1;   // number of dimensions
 
