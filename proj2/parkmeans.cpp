@@ -172,13 +172,15 @@ int main(int argc, char* argv[]) {
 
     //calculate new clusters based on distances, returning assignments, do it parallel using MPI gatherall and reduce
     //check if means are the same as before, if yes break
-    while(true) {
+    while (true) {
         std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-        if (assignments == new_assignments) {
+        std::vector<int> all_new_assignments(n);
+        MPI_Allgather(&new_assignments[0], n/nprocs, MPI_INT, &all_new_assignments[0], n/nprocs, MPI_INT, MPI_COMM_WORLD);
+        if (assignments == all_new_assignments) {
             break;
         }
-        assignments = new_assignments;
-        //compute new means and send it to all processes
+        assignments = all_new_assignments;
+        // Compute new means and send them to all processes
         for (int i = 0; i < n_means; i++) {
             double sum = 0;
             int count = 0;
@@ -188,23 +190,20 @@ int main(int argc, char* argv[]) {
                     count++;
                 }
             }
-            if (count > 0) {
-                means[i] = sum / count;
-            } else {
-                means[i] = 0;
+            double local_sum = sum;
+            int local_count = count;
+            MPI_Reduce(&local_sum, &sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_Reduce(&local_count, &count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (process_no == 0) {
+                if (count > 0) {
+                    means[i] = sum / count;
+                } else {
+                    means[i] = 0;
+                }
             }
         }
-        MPI_Allgather(&means[0], n_means, MPI_DOUBLE, &all_means[0], n_means, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
-    //print new means of all processes
-    if (process_no == 0) {
-        printf("Final centers: ");
-        for (int i = 0; i < n_means; i++) {
-            printf("%d ", int(means[i]));
-        }
-        std::cout << std::endl;
-    }
-
 
 
     MPI_Finalize();
