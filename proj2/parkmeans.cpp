@@ -91,10 +91,10 @@ std::vector<int> new_clusters(int process_no, int n, const vector<unsigned char>
         new_assignments[i] = find_nearest_cluster(numbers_file[i], means);
     }
     if (process_no == 0) {
-        std::cout << "Assignments: ";
-        for (int i = 0; i < n; i++) {
-            std::cout << assignments[i] << " ";
-        }
+        // std::cout << "Assignments: ";
+        // for (int i = 0; i < n; i++) {
+        //     std::cout << assignments[i] << " ";
+        // }
         std::cout << std::endl;
     }
     return new_assignments;
@@ -103,7 +103,6 @@ std::vector<int> new_clusters(int process_no, int n, const vector<unsigned char>
 
 int main(int argc, char *argv[])
 {
-
     int process_no;
     int nprocs;
     //create list of means of size n_means
@@ -127,7 +126,16 @@ int main(int argc, char *argv[])
         MPI_Finalize();
         return 1;
     }
-    int n = file_size(input); 
+    int n = 0;
+    if (process_no == 0) {
+        n = file_size(input);
+    }
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    
+    int chunk_size = n / nprocs;
+    if (process_no < n % nprocs) {
+        chunk_size++;
+    }
 
     // numbers of processes must the same as numbers in file
     if (nprocs > n) {
@@ -139,7 +147,6 @@ int main(int argc, char *argv[])
         input.seekg(n-nprocs, ios::beg);
         n = nprocs;
     }
-
     //read input numbers from binary file
     std::vector<unsigned char> numbers_file(n);
     if (process_no == 0) {
@@ -147,21 +154,12 @@ int main(int argc, char *argv[])
         input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
         input.close();
 
-        // Output the numbers to the console
-        std::cout << "Input: ";
-        for (int i = 0; i < n; i++){
-            std::cout << static_cast<int>(numbers_file[i]) << " ";
-        }
-        std::cout << std::endl;
-
-
          // Split numbers_file into 4 clusters
         std::vector<std::vector<unsigned char>> clusters(n_means);
         for (int i = 0; i < n; i++) {
             clusters[i % n_means].push_back(numbers_file[i]);
         }
      
-        // Print the clusters to the console
         for (int i = 0; i < n_means; i++) {
             //print cluster mean from means list
             double mean = 0;
@@ -170,7 +168,6 @@ int main(int argc, char *argv[])
             }
             mean /= clusters[i].size();
             means[i] = mean;
-          
 
             std::cout << "Cluster " << i+1 << ": ";
             std::cout << std::setprecision(1) << std::fixed << "[" << means[i] << "]" << " ";
@@ -183,11 +180,10 @@ int main(int argc, char *argv[])
             }
             std::cout << std::endl;
         }
-        
     }
     // broadcast means to all processes
     MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     // assign each number to its nearest cluster
     std::vector<int> assignments(n);
@@ -196,15 +192,9 @@ int main(int argc, char *argv[])
         assignments[i] = cluster_index;
     }
 
-     // print assignments
     if (process_no == 0) {
-        std::cout << "Assignments: ";
-        for (int i = 0; i < n; i++) {
-            std::cout << assignments[i] << " ";
-        }
         std::cout << std::endl;
     }
-
     //call new_clusters until assignments dont change
     std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
     while (assignments != new_assignments) {
@@ -212,11 +202,7 @@ int main(int argc, char *argv[])
         new_assignments = new_clusters(process_no, n, numbers_file, assignments);
     }
     new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-   
-
-    // Finalize MPI
     MPI_Finalize();
-
     return 0;
 }
 
