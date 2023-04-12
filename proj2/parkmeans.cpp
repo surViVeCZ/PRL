@@ -159,20 +159,42 @@ int main(int argc, char* argv[]) {
         assignments[i] = find_nearest_cluster(numbers_file[i], means);
     }
 
-    std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-    std::vector<int> all_assignments(nprocs * n);
-    MPI_Allgather(&new_assignments[0], n, MPI_INT, &all_assignments[0], n, MPI_INT, MPI_COMM_WORLD);
 
-    while (new_assignments != assignments) {
+    //calculate new clusters based on distances, returning assignments, do it parallel using MPI gatherall and reduce
+    while(true) {
+        std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
+        if (new_assignments == assignments) {
+            break;
+        }
         assignments = new_assignments;
-        new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-        //MPI_Allgather(&new_assignments[0], n, MPI_INT, &all_assignments[0], n, MPI_INT, MPI_COMM_WORLD);
-
-        MPI_Reduce(&all_means[process_no * n_means], &means[0], n_means, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-        MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        //compute new means and send it to all processes
+        for (int i = 0; i < n_means; i++) {
+            double sum = 0;
+            int count = 0;
+            for (int j = 0; j < n; j++) {
+                if (assignments[j] == i) {
+                    sum += numbers_file[j];
+                    count++;
+                }
+            }
+            if (count > 0) {
+                means[i] = sum / count;
+            } else {
+                means[i] = 0;
+            }
+        }
+        MPI_Allgather(&means[0], n_means, MPI_DOUBLE, &all_means[0], n_means, MPI_DOUBLE, MPI_COMM_WORLD);
     }
-    new_clusters(process_no, n, numbers_file, assignments);
-    
+    //print new means of all processes
+    if (process_no == 0) {
+        printf("Final centers: ");
+        for (int i = 0; i < n_means; i++) {
+            printf("%d ", int(means[i]));
+        }
+        std::cout << std::endl;
+    }
+
+
 
     MPI_Finalize();
     return 0;
