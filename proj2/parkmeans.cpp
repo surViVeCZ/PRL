@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <iomanip>
 
 using namespace std;
 
@@ -91,10 +92,10 @@ void compute_clusters(double **values, int n, int m, double **clusters, int *ass
 int main(int argc, char *argv[])
 {
 
-    int rank;
+    int process_no;
     int nprocs;
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_rank(MPI_COMM_WORLD, &process_no);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     //number of processes must be 4 - 32
@@ -113,17 +114,66 @@ int main(int argc, char *argv[])
         return 1;
     }
     int n = file_size(input); 
-    printf("%d", n);
+
+    // numbers of processes must the same as numbers in file
     if (nprocs > n) {
         std::cerr << "Too many processes" << std::endl;
         MPI_Finalize();
         return 1;
     }
     if (n > nprocs) {
-        //cut off the rest of numbers, so there is exactly nprocs numbers
-        //for example if n=16 and nprocs=4, then we cut off 12 numbers from the end
         input.seekg(n-nprocs, ios::beg);
         n = nprocs;
+    }
+
+    //read input numbers from binary file
+    if (process_no == 0) {
+        // Read in the data for the root process from the binary file
+        std::vector<unsigned char> numbers_file(n);
+        input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
+        input.close();
+
+        // Output the numbers to the console
+        std::cout << "Input: ";
+        for (int i = 0; i < n; i++){
+            std::cout << static_cast<int>(numbers_file[i]) << " ";
+        }
+        std::cout << std::endl;
+
+
+         // Split numbers_file into 4 clusters
+        std::vector<std::vector<unsigned char>> clusters(n_means);
+        for (int i = 0; i < n; i++) {
+            clusters[i % n_means].push_back(numbers_file[i]);
+        }
+     
+        //create list of means of size n_means
+        std::vector<double> means(n_means);
+    
+
+        // Print the clusters to the console
+        for (int i = 0; i < n_means; i++) {
+            //print cluster mean from means list
+            double mean = 0;
+            for (int j = 0; j < clusters[i].size(); j++) {
+                mean += clusters[i][j];
+            }
+            mean /= clusters[i].size();
+            means[i] = mean;
+          
+
+            std::cout << "Cluster " << i+1 << ": ";
+            std::cout << std::setprecision(1) << std::fixed << "[" << means[i] << "]" << " ";
+            for (int j = 0; j < clusters[i].size(); j++) {
+                //for last dont print comma
+                if( j == clusters[i].size()-1)
+                    std::cout << static_cast<int>(clusters[i][j]);
+                else
+                    std::cout << static_cast<int>(clusters[i][j]) << ", ";
+            }
+            std::cout << std::endl;
+        }
+        
     }
 
     int m = 1;   // number of dimensions
@@ -155,7 +205,7 @@ int main(int argc, char *argv[])
     compute_clusters(values, n, m, clusters, assignments);
 
     // Print the results
-    if (rank == 0) {
+    if (process_no == 0) {
         printf("Clusters:\n");
         for (int i = 0; i < n_means; i++) {
             for (int j = 0; j < m; j++) {
