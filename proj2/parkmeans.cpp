@@ -11,8 +11,6 @@
 #include <iomanip>
 
 using namespace std;
-
-const int MAX_ITER = 100;
 const int n_means = 4;
 
 double distance(unsigned char value, double mean) {
@@ -48,18 +46,58 @@ double distance(double *v1, double *v2, int n)
     return sqrt(d);
 }
 
-int find_nearest_cluster(double *value, double **clusters, int n, int m)
+
+void print_cluster(int i, const vector<double>& means, const vector<vector<unsigned char> >& clusters)
 {
-    int cluster_index = -1;
-    double min_distance = INFINITY;
+    std::cout << "Cluster " << i+1 << ": ";
+    std::cout << std::setprecision(1) << std::fixed << "[" << means[i] << "]" << " ";
+    for (int j = 0; j < clusters[i].size(); j++) {
+        //for last dont print comma
+        if( j == clusters[i].size()-1)
+            std::cout << static_cast<int>(clusters[i][j]);
+        else
+            std::cout << static_cast<int>(clusters[i][j]) << ", ";
+    }
+    std::cout << std::endl;
+}
+
+//calculating new clusters based on distances, returning assignments
+std::vector<int> new_clusters(int process_no, int n, const vector<unsigned char>& numbers_file, const vector<int>& assignments)
+{
+ //create new clusters from numbers_file based on assignments
+    std::vector<std::vector<unsigned char>> clusters(n_means);
     for (int i = 0; i < n; i++) {
-        double d = distance(value, clusters[i], m);
-        if (d < min_distance) {
-            min_distance = d;
-            cluster_index = i;
+        clusters[assignments[i]].push_back(numbers_file[i]);
+    }
+    //calculate new means
+    std::vector<double> means(n_means);
+    for (int i = 0; i < n_means; i++) {
+        double mean = 0;
+        for (int j = 0; j < clusters[i].size(); j++) {
+            mean += clusters[i][j];
+        }
+        mean /= clusters[i].size();
+        means[i] = mean;
+    }
+    // print clusters
+    if (process_no == 0) {
+        for (int i = 0; i < n_means; i++) {
+            print_cluster(i, means, clusters);
         }
     }
-    return cluster_index;
+    //calculate new assignments
+    std::vector<int> new_assignments(n);
+    for (int i = 0; i < n; i++) {
+        new_assignments[i] = find_nearest_cluster(numbers_file[i], means);
+    }
+    if (process_no == 0) {
+        std::cout << "Assignments: ";
+        for (int i = 0; i < n; i++) {
+            std::cout << assignments[i] << " ";
+        }
+        std::cout << std::endl;
+    }
+    return new_assignments;
 }
 
 
@@ -147,16 +185,34 @@ int main(int argc, char *argv[])
         }
         
     }
+    // broadcast means to all processes
+    MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+
     // assign each number to its nearest cluster
     std::vector<int> assignments(n);
     for (int i = 0; i < n; i++) {
-        double value = numbers_file[i];
-        int cluster_index = find_nearest_cluster(value, means);
+        int cluster_index = find_nearest_cluster(numbers_file[i], means);
         assignments[i] = cluster_index;
     }
 
-    int m = 1;   // number of dimensions
+     // print assignments
+    if (process_no == 0) {
+        std::cout << "Assignments: ";
+        for (int i = 0; i < n; i++) {
+            std::cout << assignments[i] << " ";
+        }
+        std::cout << std::endl;
+    }
 
+    //call new_clusters until assignments dont change
+    std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
+    while (assignments != new_assignments) {
+        assignments = new_assignments;
+        new_assignments = new_clusters(process_no, n, numbers_file, assignments);
+    }
+    new_assignments = new_clusters(process_no, n, numbers_file, assignments);
+   
 
     // Finalize MPI
     MPI_Finalize();
