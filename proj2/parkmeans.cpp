@@ -153,6 +153,16 @@ int main(int argc, char* argv[]) {
     MPI_Scatter(&numbers_file[0], 1, MPI_UNSIGNED_CHAR, &numbers_file[0], 1, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
     MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    //print the 0th iteration of clusters containing only the center
+    if (process_no == 0) {
+        for (int i = 0; i < n_means; i++) {
+            std::cout << "Cluster " << i+1 << ": ";
+            std::cout << std::setprecision(1) << std::fixed << "[" << means[i] << "]" << " ";
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+
     //declare assignments
     std::vector<int> assignments(n);
     for (int i = 0; i < n; i++) {
@@ -161,9 +171,10 @@ int main(int argc, char* argv[]) {
 
 
     //calculate new clusters based on distances, returning assignments, do it parallel using MPI gatherall and reduce
+    //check if means are the same as before, if yes break
     while(true) {
         std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-        if (new_assignments == assignments) {
+        if (assignments == new_assignments) {
             break;
         }
         assignments = new_assignments;
