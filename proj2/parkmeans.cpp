@@ -111,44 +111,26 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &process_no);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    //number of processes must be 4 - 32
-    if (nprocs < 4 || nprocs > 32){
-        std::cerr << "Wrong ammount of processes" << std::endl;
-        MPI_Finalize();
-        return 1;
-    }
-
     //opening binary file
     std::ifstream input("numbers", std::ios::binary);
-    
-    if (!input){
-        std::cerr << "Failed to open file" << std::endl;
-        MPI_Finalize();
-        return 1;
-    }
+
     int n = 0;
     if (process_no == 0) {
         n = file_size(input);
     }
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    
-    int chunk_size = n / nprocs;
-    if (process_no < n % nprocs) {
-        chunk_size++;
-    }
 
-    // numbers of processes must the same as numbers in file
-    if (nprocs > n) {
-        std::cerr << "Too many processes" << std::endl;
-        MPI_Finalize();
-        return 1;
-    }
-    if (n > nprocs) {
-        input.seekg(n-nprocs, ios::beg);
-        n = nprocs;
-    }
+    const int chunk = n / nprocs;
+    std::vector<unsigned char> chunk_numbers_file(chunk);
+    MPI_Scatter(NULL, 0, MPI_DATATYPE_NULL, &chunk_numbers_file[0], chunk, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+    //local mean for each process
+    std::vector<double> local_means(n_means);
+
     //read input numbers from binary file
     std::vector<unsigned char> numbers_file(n);
+    std::vector<double> all_means(n_means * nprocs);
+    MPI_Gather(&means[0], n_means, MPI_DOUBLE, &all_means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
     if (process_no == 0) {
         // Read in the data for the root process from the binary file
         input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
@@ -161,7 +143,6 @@ int main(int argc, char *argv[])
         }
      
         for (int i = 0; i < n_means; i++) {
-            //print cluster mean from means list
             double mean = 0;
             for (int j = 0; j < clusters[i].size(); j++) {
                 mean += clusters[i][j];
@@ -180,11 +161,9 @@ int main(int argc, char *argv[])
             }
             std::cout << std::endl;
         }
+        //broadcast means to other processes
+        MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     }
-    // broadcast means to all processes
-    MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-
     // assign each number to its nearest cluster
     std::vector<int> assignments(n);
     for (int i = 0; i < n; i++) {
