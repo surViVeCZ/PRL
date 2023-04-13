@@ -17,11 +17,11 @@ double distance(unsigned char value, double mean) {
     return abs(value - mean);
 }
 
-int find_nearest_cluster(unsigned char value, const vector<double>& means) {
+int find_nearest_cluster(int value, const vector<double>& means) {
     int cluster_index = -1;
     double min_distance = INFINITY;
     for (int i = 0; i < n_means; i++) {
-        double d = distance(value, means[i]);
+        double d = abs(value - means[i]);
         if (d < min_distance) {
             min_distance = d;
             cluster_index = i;
@@ -37,70 +37,18 @@ int file_size(ifstream& file){
     return n;
 }
 
-double distance(double *v1, double *v2, int n)
-{
-    double d = 0;
-    for (int i = 0; i < n; i++) {
-        d += (v1[i] - v2[i]) * (v1[i] - v2[i]);
-    }
-    return sqrt(d);
-}
 
-
-void print_cluster(int i, const vector<double>& means, const vector<vector<unsigned char> >& clusters)
+void print_cluster(double mean, const vector<int >& cluster)
 {
-    std::cout << "Cluster " << i+1 << ": ";
-    std::cout << std::setprecision(1) << std::fixed << "[" << means[i] << "]" << " ";
-    for (int j = 0; j < clusters[i].size(); j++) {
+    std::cout << std::setprecision(1) << std::fixed << "[" << mean << "]" << " ";
+    for (int j = 0; j < cluster.size(); j++) {
         //for last dont print comma
-        if( j == clusters[i].size()-1)
-            std::cout << static_cast<int>(clusters[i][j]);
+        if( j == cluster.size()-1)
+            std::cout << cluster[j];
         else
-            std::cout << static_cast<int>(clusters[i][j]) << ", ";
+            std::cout << cluster[j] << ", ";
     }
     std::cout << std::endl;
-}
-
-//calculating new clusters based on distances, returning assignments
-std::vector<int> new_clusters(int process_no, int n, const vector<unsigned char>& numbers_file, const vector<int>& assignments)
-{
- //create new clusters from numbers_file based on assignments
-    std::vector<std::vector<unsigned char>> clusters(n_means);
-    for (int i = 0; i < n; i++) {
-        clusters[assignments[i]].push_back(numbers_file[i]);
-    }
-    //calculate new means
-    std::vector<double> means(n_means);
-    for (int i = 0; i < n_means; i++) {
-        double sum = 0;
-        for (int j = 0; j < clusters[i].size(); j++) {
-            sum += clusters[i][j];
-        }
-        if (clusters[i].size() > 0) {
-            means[i] = sum / clusters[i].size();
-        } else {
-            means[i] = 0;
-        }
-    }
-    // print clusters
-    if (process_no == 0) {
-        for (int i = 0; i < n_means; i++) {
-            print_cluster(i, means, clusters);
-        }
-    }
-    //calculate new assignments
-    std::vector<int> new_assignments(n);
-    for (int i = 0; i < n; i++) {
-        new_assignments[i] = find_nearest_cluster(numbers_file[i], means);
-    }
-    if (process_no == 0) {
-        // std::cout << "Assignments: ";
-        // for (int i = 0; i < n; i++) {
-        //     std::cout << assignments[i] << " ";
-        // }
-        std::cout << std::endl;
-    }
-    return new_assignments;
 }
 
 
@@ -117,31 +65,36 @@ int main(int argc, char* argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &process_no);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-    std::ifstream input("numbers", std::ios::binary);
+    std::vector<int> numbers(nprocs);
+    std::vector<double> all_means(n_means * nprocs);
+
     int n = 0;
     if (process_no == 0) {
+        std::ifstream input("numbers", std::ios::binary);
         n = file_size(input);
-
+        std::vector<unsigned char> numbers_file(n);
+        
+        input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
+        input.close();
         if (nprocs > n) {
             std::cerr << "Too many processes" << std::endl;
             MPI_Finalize();
             return 1;
+        } else if(nprocs < n){
+            numbers_file.resize(nprocs);
         }
-    }
 
-    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        //copy numbers_file to numbers
+        for (int i = 0; i < n; i++) {
+            numbers[i] = (int)numbers_file[i];
+        }
 
-    if (n > nprocs) {
-        input.seekg(n-nprocs, std::ios::beg);
-        n = nprocs;
-    }
-
-    std::vector<unsigned char> numbers_file(n);
-    std::vector<double> all_means(n_means * nprocs);
-
-    if (process_no == 0) {
-        input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
-        input.close();
+        //print number_file
+        std::cout << "Numbers: ";
+        for (int i = 0; i < n; i++) {
+            std::cout << numbers[i] << " ";
+        }
+        std::cout << std::endl;
         printf("Initialized centers: ");
         for (int i = 0; i < n_means; i++) {
             means[i] = numbers_file[i];
@@ -150,61 +103,96 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl;
     }
 
-    MPI_Scatter(&numbers_file[0], 1, MPI_UNSIGNED_CHAR, &numbers_file[0], 1, MPI_UNSIGNED_CHAR, 0, MPI_COMM_WORLD);
+    // State: rank 0 has all numbers and means
+
+    // Distibute one number to each process
+    int number = 0;
+    MPI_Scatter(&numbers[0], 1, MPI_INT, &number, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    std::cout << "Process " << process_no << " got number " << number << std::endl;
+    
+    // Broadcast means to all processes
     MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    //print the 0th iteration of clusters containing only the center
-    if (process_no == 0) {
+    // State: all processes have means and one number
+
+    bool converged = false;
+    while(!converged) {
+        // Find nearest cluster
+        int cluster_index = find_nearest_cluster(number, means);
+
+        // recompute means ofall clusters
+
+        int local_size[n_means] = {0};
+        int local_sum[n_means] = {0};
+
+        local_size[cluster_index] = 1;
+        local_sum[cluster_index] = number;
+
+        int cluster_sizes[n_means] = {0};
+        int cluster_sums[n_means] = {0};
+
+        // print
+        std::cout << "Process " << process_no << " local_size: ";
         for (int i = 0; i < n_means; i++) {
-            std::cout << "Cluster " << i+1 << ": ";
-            std::cout << std::setprecision(1) << std::fixed << "[" << means[i] << "]" << " ";
-            std::cout << std::endl;
+            std::cout << local_size[i] << " ";
         }
         std::cout << std::endl;
-    }
 
-    //declare assignments
-    std::vector<int> assignments(n);
-    for (int i = 0; i < n; i++) {
-        assignments[i] = find_nearest_cluster(numbers_file[i], means);
-    }
-
-
-    //calculate new clusters based on distances, returning assignments, do it parallel using MPI gatherall and reduce
-    //check if means are the same as before, if yes break
-    while (true) {
-        std::vector<int> new_assignments = new_clusters(process_no, n, numbers_file, assignments);
-        std::vector<int> all_new_assignments(n);
-        MPI_Allgather(&new_assignments[0], n/nprocs, MPI_INT, &all_new_assignments[0], n/nprocs, MPI_INT, MPI_COMM_WORLD);
-        if (assignments == all_new_assignments) {
-            break;
-        }
-        assignments = all_new_assignments;
-        // Compute new means and send them to all processes
+        std::cout << "Process " << process_no << " local_sum: ";
         for (int i = 0; i < n_means; i++) {
-            double sum = 0;
-            int count = 0;
-            for (int j = 0; j < n; j++) {
-                if (assignments[j] == i) {
-                    sum += numbers_file[j];
-                    count++;
-                }
-            }
-            double local_sum = sum;
-            int local_count = count;
-            MPI_Reduce(&local_sum, &sum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-            MPI_Reduce(&local_count, &count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-            if (process_no == 0) {
-                if (count > 0) {
-                    means[i] = sum / count;
-                } else {
-                    means[i] = 0;
-                }
+            std::cout << local_sum[i] << " ";
+        }
+        std::cout << std::endl;
+
+        MPI_Allreduce(&local_size[0], &cluster_sizes[0], n_means, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(&local_sum[0], &cluster_sums[0], n_means, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+        // print
+        std::cout << "Process " << process_no << " cluster_sizes: ";
+        for (int i = 0; i < n_means; i++) {
+            std::cout << cluster_sizes[i] << " ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "Process " << process_no << " cluster_sums: ";
+        for (int i = 0; i < n_means; i++) {
+            std::cout << cluster_sums[i] << " ";
+        }
+        std::cout << std::endl;
+
+        std::vector<double> new_means(n_means);
+
+        for (int i = 0; i < n_means; i++) {
+            new_means[i] = cluster_sums[i] / cluster_sizes[i];
+        }
+
+        // Check if converged
+        converged = true;
+        for (int i = 0; i < n_means; i++) {
+            if (new_means[i] != means[i]) {
+                converged = false;
+                break;
             }
         }
-        MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+        means = new_means;
     }
 
+    std::cout << "Process " << process_no << " converged" << std::endl;
+
+    // rank 0 will pretty print the clusters
+    if (process_no == 0) {
+        // get clusters
+        std::vector<std::vector<int>> clusters(n_means);
+        for (int i = 0; i < n; i++) {
+            int cluster_index = find_nearest_cluster(numbers[i], means);
+            clusters[cluster_index].push_back(numbers[i]);
+        }
+        for (int i = 0; i < n_means; i++) {
+            print_cluster(means[i], clusters[i]);
+        }
+    }
 
     MPI_Finalize();
     return 0;

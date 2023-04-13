@@ -2,7 +2,7 @@
 
 #pocet cisel bud zadam nebo 10 :)
 if [ $# -lt 1 ];then 
-    numbers=32;
+    numbers=8;
 else
     numbers=$1;
 fi;
