@@ -58,17 +58,6 @@ int main(int argc, char** argv) {
         input.read(reinterpret_cast<char*>(&numbers_file[0]), n);
         input.close();
 
-        if (nprocs > n) {
-            std::cerr << "Too many processes" << std::endl;
-            MPI_Finalize();
-            return 1;
-        }
-        // If there are less processes than numbers, then cutoff rest of numbers
-        
-        if (n > nprocs) {
-            numbers_file.erase(numbers_file.begin() + nprocs, numbers_file.end());
-        }
-
         // Output the numbers to the console
         std::cout << "Input: ";
         for (int i = 0; i < n; i++){
@@ -84,8 +73,6 @@ int main(int argc, char** argv) {
     } else {
         MPI_Scatter(nullptr, n_per_process, MPI_UNSIGNED_CHAR,&local_numbers[0], n_per_process, MPI_UNSIGNED_CHAR,0, MPI_COMM_WORLD);
     }
-
-    
 
     // Broadcasting the median to all processes
     MPI_Bcast(&median, 1, MPI_INT, 0, MPI_COMM_WORLD);
