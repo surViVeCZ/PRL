@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
     int number = 0;
     MPI_Scatter(&numbers[0], 1, MPI_INT, &number, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-    std::cout << "Process " << process_no << " got number " << number << std::endl;
+    //std::cout << "Process " << process_no << " got number " << number << std::endl;
     
     // Broadcast means to all processes
     MPI_Bcast(&means[0], n_means, MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -132,34 +132,21 @@ int main(int argc, char* argv[]) {
         int cluster_sizes[n_means] = {0};
         int cluster_sums[n_means] = {0};
 
-        // print
-        std::cout << "Process " << process_no << " local_size: ";
-        for (int i = 0; i < n_means; i++) {
-            std::cout << local_size[i] << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "Process " << process_no << " local_sum: ";
-        for (int i = 0; i < n_means; i++) {
-            std::cout << local_sum[i] << " ";
-        }
-        std::cout << std::endl;
-
         MPI_Allreduce(&local_size[0], &cluster_sizes[0], n_means, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
         MPI_Allreduce(&local_sum[0], &cluster_sums[0], n_means, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
         // print
-        std::cout << "Process " << process_no << " cluster_sizes: ";
-        for (int i = 0; i < n_means; i++) {
-            std::cout << cluster_sizes[i] << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "Process " << process_no << " cluster_sizes: ";
+        // for (int i = 0; i < n_means; i++) {
+        //     std::cout << cluster_sizes[i] << " ";
+        // }
+        // std::cout << std::endl;
 
-        std::cout << "Process " << process_no << " cluster_sums: ";
-        for (int i = 0; i < n_means; i++) {
-            std::cout << cluster_sums[i] << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "Process " << process_no << " cluster_sums: ";
+        // for (int i = 0; i < n_means; i++) {
+        //     std::cout << cluster_sums[i] << " ";
+        // }
+        // std::cout << std::endl;
 
         std::vector<double> new_means(n_means);
 
@@ -179,7 +166,7 @@ int main(int argc, char* argv[]) {
         means = new_means;
     }
 
-    std::cout << "Process " << process_no << " converged" << std::endl;
+    //std::cout << "Process " << process_no << " converged" << std::endl;
 
     // rank 0 will pretty print the clusters
     if (process_no == 0) {
