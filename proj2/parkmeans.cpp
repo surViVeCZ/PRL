@@ -89,12 +89,6 @@ int main(int argc, char* argv[]) {
             numbers[i] = (int)numbers_file[i];
         }
 
-        //print number_file
-        // std::cout << "Numbers: ";
-        // for (int i = 0; i < n; i++) {
-        //     std::cout << numbers[i] << " ";
-        // }
-        //std::cout << std::endl;
         // printf("Initialized centers: ");
         for (int i = 0; i < n_means; i++) {
             means[i] = numbers_file[i];
@@ -121,32 +115,18 @@ int main(int argc, char* argv[]) {
         // Find nearest cluster
         int cluster_index = find_nearest_cluster(number, means);
 
-        // recompute means ofall clusters
-
-        int local_size[n_means] = {0};
-        int local_sum[n_means] = {0};
+        double local_size[n_means] = {0};
+        double local_sum[n_means] = {0};
 
         local_size[cluster_index] = 1;
         local_sum[cluster_index] = number;
 
-        int cluster_sizes[n_means] = {0};
-        int cluster_sums[n_means] = {0};
+        double cluster_sizes[n_means] = {0};
+        double cluster_sums[n_means] = {0};
 
-        MPI_Allreduce(&local_size[0], &cluster_sizes[0], n_means, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-        MPI_Allreduce(&local_sum[0], &cluster_sums[0], n_means, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(&local_size[0], &cluster_sizes[0], n_means, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        MPI_Allreduce(&local_sum[0], &cluster_sums[0], n_means, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-        // print
-        // std::cout << "Process " << process_no << " cluster_sizes: ";
-        // for (int i = 0; i < n_means; i++) {
-        //     std::cout << cluster_sizes[i] << " ";
-        // }
-        // std::cout << std::endl;
-
-        // std::cout << "Process " << process_no << " cluster_sums: ";
-        // for (int i = 0; i < n_means; i++) {
-        //     std::cout << cluster_sums[i] << " ";
-        // }
-        // std::cout << std::endl;
 
         std::vector<double> new_means(n_means);
 
@@ -165,9 +145,6 @@ int main(int argc, char* argv[]) {
 
         means = new_means;
     }
-
-    //std::cout << "Process " << process_no << " converged" << std::endl;
-
     // rank 0 will pretty print the clusters
     if (process_no == 0) {
         // get clusters
