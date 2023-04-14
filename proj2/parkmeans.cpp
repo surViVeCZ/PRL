@@ -90,17 +90,17 @@ int main(int argc, char* argv[]) {
         }
 
         //print number_file
-        std::cout << "Numbers: ";
-        for (int i = 0; i < n; i++) {
-            std::cout << numbers[i] << " ";
-        }
-        std::cout << std::endl;
-        printf("Initialized centers: ");
+        // std::cout << "Numbers: ";
+        // for (int i = 0; i < n; i++) {
+        //     std::cout << numbers[i] << " ";
+        // }
+        //std::cout << std::endl;
+        // printf("Initialized centers: ");
         for (int i = 0; i < n_means; i++) {
             means[i] = numbers_file[i];
-            printf("%d ", int(means[i]));
+            //printf("%d ", int(means[i]));
         }
-        std::cout << std::endl;
+        //std::cout << std::endl;
     }
 
     // State: rank 0 has all numbers and means

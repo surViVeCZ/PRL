@@ -2,7 +2,7 @@
 
 #pocet cisel bud zadam nebo 10 :)
 if [ $# -lt 1 ];then 
-    numbers=8;
+    numbers=32;
 else
     numbers=$1;
 fi;
@@ -18,4 +18,4 @@ dd if=/dev/random bs=1 count=$numbers of=numbers
 mpirun -oversubscribe --prefix /usr/local/share/OpenMPI -np $numbers parkmeans
 
 #uklid
-rm -f oems numbers
+# rm -f oems numbers
