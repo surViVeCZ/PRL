@@ -1,3 +1,9 @@
+//Date: 15.4.2023
+//Author: Bc. Petr Pouč
+//login: xpoucp01
+//Description: Parallel 4-means clustering algorithm
+
+
 #include <mpi.h>
 #include <cmath>
 #include <cstdio>
@@ -66,7 +72,6 @@ int main(int argc, char* argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     std::vector<int> numbers(nprocs);
-    std::vector<double> all_means(n_means * nprocs);
 
     int n = 0;
     if (process_no == 0) {
@@ -91,7 +96,7 @@ int main(int argc, char* argv[]) {
 
         // printf("Initialized centers: ");
         for (int i = 0; i < n_means; i++) {
-            means[i] = numbers_file[i];
+            means[i] = numbers_file[i]; 
             //printf("%d ", int(means[i]));
         }
         //std::cout << std::endl;
